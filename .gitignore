@@ -1,0 +1,6 @@
+research_utils.egg-info/*
+build/*
+*.pyc
+*~
+*.so
+fast_pga.c
