@@ -1,5 +1,5 @@
 import numpy as np
-from vector_utils import sph2cart, cart2sph
+from sph2cart import sph2cart, cart2sph
 
 
 class AEP(object):

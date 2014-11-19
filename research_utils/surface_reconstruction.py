@@ -1,16 +1,16 @@
 import numpy as np
 from scipy.fftpack import ifftshift, fft2, ifft2, dct, idct
-from scipy.sparse.linalg import spsolve, lsqr
-from scipy.sparse import csc_matrix, issparse
+from scipy.sparse.linalg import spsolve, lsqr, splu
+from scipy.sparse import csc_matrix, issparse, coo_matrix
 from numpy.linalg import eig
 
 
 def test_reconstruction(im):
     from copy import deepcopy
-    from pybug.image import MaskedNDImage, DepthImage
+    from menpo.image import MaskedImage
 
     im = deepcopy(im)
-    new_im = MaskedNDImage.blank(im.shape, mask=im.mask, n_channels=3)
+    new_im = MaskedImage.blank(im.shape, mask=im.mask, n_channels=3)
     im.rebuild_mesh()
     n = im.mesh.vertex_normals
     new_im.from_vector_inplace(n.flatten())
@@ -18,7 +18,7 @@ def test_reconstruction(im):
     d = frankotchellappa(g.pixels[..., 0], g.pixels[..., 1])
 
     im.view(mode='mesh', normals=n, mask_points=20)
-    DepthImage(d - np.min(d)).view_new(mode='mesh')
+    MaskedImage(d - np.min(d)).view_new(mode='mesh')
 
 
 def gradient_field_from_normals(normals):
@@ -195,6 +195,69 @@ def M_estimator(gx, gy, max_iters=3, k=1.345):
         previous_estimate = current_estimate
 
     return current_estimate
+
+
+def sparse_integration(normals_image, mask=None):
+    shape = normals_image.shape
+    number_of_vertices = np.prod(shape)
+
+    I = []
+    J = []
+    V = []
+    b_vec = []
+    indices = np.indices(shape).reshape([2, -1]).T
+    normals = normals_image.pixels
+
+    coef_count = 0
+    for y, x in indices:
+        if mask is None or mask[y, x]:
+            nx = normals[y, x, 0]
+            ny = normals[y, x, 1]
+            nz = normals[y, x, 2]
+
+            xy = y * shape[1] + x
+            x1y = y * shape[1] + (x + 1)
+            xy1 = (y + 1) * shape[1] + x
+
+            if xy1 < number_of_vertices and xy < number_of_vertices and x1y < number_of_vertices:
+                b_vec.append(nx)
+                I.append(coef_count)
+                J.append(x1y)
+                V.append(nz)
+                I.append(coef_count)
+                J.append(xy)
+                V.append(-nz)
+                coef_count += 1
+
+                # This is negated
+                b_vec.append(-ny)
+                I.append(coef_count)
+                J.append(xy1)
+                V.append(nz)
+                I.append(coef_count)
+                J.append(xy)
+                V.append(-nz)
+                coef_count += 1
+            else:
+                b_vec.append(0)
+                I.append(coef_count)
+                J.append(xy)
+                V.append(nz)
+                coef_count += 1
+
+    # Constrain the integration to a single point
+    b_vec.append(0)
+    I.append(coef_count)
+    J.append(indices[0, 0] * shape[1] + indices[0, 1])
+    V.append(1.0)
+
+    b = np.asarray(b_vec)
+    number_of_coefficients = b.shape[0]
+    A = coo_matrix((V, (I, J)), shape=(number_of_coefficients, number_of_vertices)).tocsc()
+    Z = splu(A.T.dot(A)).solve(A.T.dot(b))
+
+    # This is negated
+    return normals_image.from_vector(-Z, channels=1)
 
 
 # def diffusion_kernel_function(gx, gy):

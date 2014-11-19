@@ -1,5 +1,5 @@
 import numpy as np
-from mapping import IdentityMapper
+from mapping import IdentityMapper, ImageMapper
 from menpo.image import MaskedImage
 from vector_utils import normalise_vector, normalise_image, row_norm
 
@@ -81,7 +81,7 @@ def estimate_normals_from_intensity(average_normals, theta_image):
 
 def geometric_sfs(intensity_image, initial_estimate,
                   normal_model, light_vector, n_iters=100,
-                  mapping_object=IdentityMapper()):
+                  mapping_object=ImageMapper(IdentityMapper())):
     """
     It is assumed that the given intensity image has been pre-aligned so that
     it is in correspondence with the model.

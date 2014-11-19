@@ -1,5 +1,5 @@
 import numpy as np
-from vector_utils import sph2cart
+from sph2cart import sph2cart
 
 
 class Spherical(object):
